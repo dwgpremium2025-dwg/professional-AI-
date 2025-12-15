@@ -31,6 +31,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, lang }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Auto-fill and Auto-login from URL params
   useEffect(() => {
@@ -39,35 +40,37 @@ const Login: React.FC<LoginProps> = ({ onLogin, lang }) => {
     const p = params.get('p');
     const e = params.get('e'); // Expiry Date
     
-    if (u && p) {
-      // Attempt auto-login with sync
-      try {
-        const user = authService.loginViaShareLink(u, p, e || undefined);
-        if (user) {
-          // Clear query params after successful login to clean up URL
-          window.history.replaceState({}, document.title, window.location.pathname);
-          onLogin(user);
-          return;
-        } else {
-          setError('Auto-login failed: Invalid credentials');
+    const tryAutoLogin = async () => {
+        if (u && p) {
+            setLoading(true);
+            try {
+                const user = await authService.loginViaShareLink(u, p, e || undefined);
+                if (user) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    onLogin(user);
+                } else {
+                    setError('Auto-login failed: Invalid credentials');
+                    setLoading(false);
+                }
+            } catch (err: any) {
+                setError(err.message);
+                setLoading(false);
+            }
+            setUsername(u);
+            setPassword(p);
+        } else if (u) {
+            setUsername(u);
         }
-      } catch (err: any) {
-        setError(err.message);
-      }
-      
-      // If login failed (but params exist), fill inputs so user can see why or retry
-      setUsername(u);
-      setPassword(p);
-    } else if (u) {
-      // If only username is present
-      setUsername(u);
-    }
+    };
+    tryAutoLogin();
   }, [onLogin]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     try {
-      const user = authService.login(username, password);
+      const user = await authService.login(username, password);
       if (user) {
         window.history.replaceState({}, document.title, window.location.pathname);
         onLogin(user);
@@ -76,6 +79,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, lang }) => {
       }
     } catch (err: any) {
       setError(err.message);
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -140,9 +145,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, lang }) => {
 
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold py-3.5 rounded-xl shadow-[0_4px_20px_rgba(37,99,235,0.4)] flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] mt-4"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold py-3.5 rounded-xl shadow-[0_4px_20px_rgba(37,99,235,0.4)] flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] mt-4 disabled:opacity-50"
           >
-            Sign In <ArrowRightIcon />
+            {loading ? 'Signing In...' : 'Sign In'} <ArrowRightIcon />
           </button>
         </form>
 

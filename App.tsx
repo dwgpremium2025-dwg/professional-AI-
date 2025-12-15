@@ -149,38 +149,34 @@ const App: React.FC = () => {
     setActiveStyle(null);
   };
 
-  // Background Session Checker
+  // Background Session Checker (Now using Real-time Listener)
   useEffect(() => {
     if (!user) return;
 
-    const checkSession = () => {
-      // Re-validate session against LocalStorage
-      const isValid = authService.validateSession(user.username, user.sessionToken);
-      
-      if (!isValid) {
-        handleLogout();
-        // Alert in the correct language
-        alert(lang === Language.TH 
-            ? "เซสชั่นหมดอายุหรือมีการเปลี่ยนแปลงข้อมูลบัญชี กรุณาเข้าสู่ระบบใหม่" 
-            : "Session expired or account credentials changed. Please login again.");
-      }
-    };
+    // Listen to real-time changes on the user document
+    const unsubscribe = authService.listenToUserSession(user.id, (userData) => {
+        if (!userData) {
+            // Document deleted
+            handleLogout();
+            alert("Your account has been deleted.");
+            return;
+        }
 
-    // 1. Poll every 1 second (More frequent than before)
-    const intervalId = setInterval(checkSession, 1000);
+        const isSessionValid = 
+            userData.isActive && 
+            userData.sessionToken === user.sessionToken &&
+            (!userData.expiryDate || new Date(userData.expiryDate) > new Date());
 
-    // 2. Listen for storage events (Immediate logout across tabs in same browser)
-    const handleStorageChange = (e: StorageEvent) => {
-      // Trigger check if users or creds change
-      if (e.key === 'perpect_ai_users' || e.key === 'perpect_ai_creds') {
-        checkSession();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
+        if (!isSessionValid) {
+            handleLogout();
+            alert(lang === Language.TH 
+                ? "เซสชั่นหมดอายุหรือมีการเปลี่ยนแปลงข้อมูลบัญชี กรุณาเข้าสู่ระบบใหม่" 
+                : "Session expired or credentials changed. Please login again.");
+        }
+    });
 
     return () => {
-      clearInterval(intervalId);
-      window.removeEventListener('storage', handleStorageChange);
+      unsubscribe();
     };
   }, [user, lang]);
 
@@ -233,15 +229,9 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    // 1. Session Validation
+    // 1. Client-side Check (Basic)
     if (!user) return;
-    const isSessionValid = authService.validateSession(user.username, user.sessionToken);
-    if (!isSessionValid) {
-        alert("Session expired or invalid. Please login again.");
-        handleLogout();
-        return;
-    }
-
+    
     setLoading(true);
     try {
       const effectivePrompt = historyIndex > 0 && refinePrompt ? refinePrompt : mainPrompt;
@@ -306,13 +296,7 @@ const App: React.FC = () => {
   const handleUpscale4K = async () => {
     // 1. Session Validation
     if (!user) return;
-    const isSessionValid = authService.validateSession(user.username, user.sessionToken);
-    if (!isSessionValid) {
-        alert("Session expired or invalid. Please login again.");
-        handleLogout();
-        return;
-    }
-
+    
     const currentImg = history[historyIndex];
     if (!currentImg) return;
     

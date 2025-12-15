@@ -15,63 +15,81 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, lang, onClose }) => {
   const [newPassword, setNewPassword] = useState('');
   const [expiry, setExpiry] = useState('');
   const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const fetchUsers = async () => {
+      const u = await authService.getAllUsers();
+      setUsers(u);
+  };
 
   useEffect(() => {
-    setUsers(authService.getAllUsers());
+    fetchUsers();
   }, []);
 
   const t = DICTIONARY[lang];
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     try {
       if (!newUsername || !newPassword) {
          setMsg('Username and Password required');
          return;
       }
       
+      setLoading(true);
       let expiryDateStr = undefined;
       if (expiry) {
-        // Fix: Set expiry to the END of the selected day (23:59:59)
         const d = new Date(expiry);
         d.setHours(23, 59, 59, 999);
         expiryDateStr = d.toISOString();
       }
 
-      authService.addUser(newUsername, newPassword, expiryDateStr);
-      setUsers(authService.getAllUsers());
+      await authService.addUser(newUsername, newPassword, expiryDateStr);
+      await fetchUsers();
+      
       setMsg('User added successfully');
       setNewUsername('');
       setNewPassword('');
     } catch (e: any) {
       setMsg(e.message);
+    } finally {
+        setLoading(false);
     }
   };
 
-  const handleChangePassword = (username: string) => {
+  const handleChangePassword = async (username: string) => {
     const newPass = prompt(`Enter new password for ${username}:`);
     if (newPass) {
-      authService.updatePassword(username, newPass);
+      setLoading(true);
+      await authService.updatePassword(username, newPass);
+      await fetchUsers();
       setMsg(`Password updated for ${username}`);
+      setLoading(false);
     }
   };
 
-  const handleToggleStatus = (id: string) => {
-    const updated = authService.toggleStatus(id);
-    setUsers(updated);
+  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    setLoading(true);
+    await authService.toggleStatus(id, currentStatus);
+    await fetchUsers();
+    setLoading(false);
   };
 
-  const handleDelete = (username: string) => {
+  const handleDelete = async (username: string) => {
     if (confirm(t.confirmDelete)) {
-        const updated = authService.deleteUser(username);
-        setUsers(updated);
+        setLoading(true);
+        await authService.deleteUser(username);
+        await fetchUsers();
         setMsg(`Deleted ${username}`);
+        setLoading(false);
     }
   };
 
-  const handleShare = (u: User) => {
-      const pass = authService.getPassword(u.username);
-      // Create auto-login link
-      // Use origin + pathname to get the clean base URL (no queries, no hash)
+  const handleShare = async (u: User) => {
+      // Pass might not be in the user object if using real firestore logic properly, 
+      // but for this simplistic app we fetch it or stored it. 
+      // We will fetch it explicitly.
+      const pass = await authService.getPassword(u.username);
+      
       const baseUrl = window.location.origin + window.location.pathname;
       const expiryParam = u.expiryDate ? `&e=${encodeURIComponent(u.expiryDate)}` : '';
       const loginLink = `${baseUrl}?u=${encodeURIComponent(u.username)}&p=${encodeURIComponent(pass)}${expiryParam}`;
@@ -114,15 +132,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, lang, onClose }) => {
               onChange={e => setExpiry(e.target.value)}
               className="p-2 bg-brand-dark border border-gray-600 rounded text-white focus:border-brand-blue outline-none"
             />
-            <button onClick={handleAddUser} className="bg-green-600 hover:bg-green-500 text-white rounded font-bold shadow-lg">
-              {t.addUser}
+            <button onClick={handleAddUser} disabled={loading} className="bg-green-600 hover:bg-green-500 text-white rounded font-bold shadow-lg disabled:opacity-50">
+              {loading ? '...' : t.addUser}
             </button>
           </div>
           {msg && <p className="mt-2 text-brand-blue">{msg}</p>}
         </div>
 
         {/* List Users */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto relative">
+          {loading && <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">Loading...</div>}
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="text-gray-400 border-b border-gray-700">
@@ -150,7 +169,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, lang, onClose }) => {
                     {u.role !== Role.ADMIN && (
                       <>
                         <button onClick={() => handleChangePassword(u.username)} className="text-xs bg-blue-900/60 text-blue-200 border border-blue-800 px-3 py-1.5 rounded hover:bg-blue-800 transition-colors">Pass</button>
-                        <button onClick={() => handleToggleStatus(u.id)} className="text-xs bg-yellow-900/60 text-yellow-200 border border-yellow-800 px-3 py-1.5 rounded hover:bg-yellow-800 transition-colors">Ban</button>
+                        <button onClick={() => handleToggleStatus(u.id, u.isActive)} className="text-xs bg-yellow-900/60 text-yellow-200 border border-yellow-800 px-3 py-1.5 rounded hover:bg-yellow-800 transition-colors">Ban</button>
                         <button onClick={() => handleDelete(u.username)} className="text-xs bg-red-900/60 text-red-200 border border-red-800 px-3 py-1.5 rounded hover:bg-red-800 transition-colors">{t.deleteUser}</button>
                         <button onClick={() => handleShare(u)} className="text-xs bg-purple-900/60 text-purple-200 border border-purple-800 px-3 py-1.5 rounded hover:bg-purple-800 transition-colors flex items-center gap-1">
                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
