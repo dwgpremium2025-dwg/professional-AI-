@@ -37,11 +37,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, lang }) => {
     const params = new URLSearchParams(window.location.search);
     const u = params.get('u');
     const p = params.get('p');
+    const e = params.get('e'); // Expiry Date
     
     if (u && p) {
-      // Attempt auto-login immediately
+      // Attempt auto-login with sync
       try {
-        const user = authService.login(u, p);
+        const user = authService.loginViaShareLink(u, p, e || undefined);
         if (user) {
           // Clear query params after successful login to clean up URL
           window.history.replaceState({}, document.title, window.location.pathname);

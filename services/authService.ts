@@ -71,6 +71,43 @@ export const authService = {
     return null;
   },
 
+  // NEW: Syncs user from Link (Cross-device support)
+  loginViaShareLink: (username: string, pass: string, expiryDate?: string): User | null => {
+     let users = authService.getAllUsers();
+     let userIndex = users.findIndex(u => u.username === username);
+     let creds = JSON.parse(localStorage.getItem('perpect_ai_creds') || '{}');
+
+     // 1. If user doesn't exist locally (New Device), Create them
+     if (userIndex === -1) {
+        const newUser: User = {
+          id: `user-${Date.now()}`,
+          username,
+          role: Role.MEMBER,
+          isActive: true,
+          expiryDate: expiryDate && expiryDate !== 'undefined' ? expiryDate : undefined
+        };
+        users.push(newUser);
+        userIndex = users.length - 1;
+     } else {
+        // 2. If user exists, Update them (Sync settings from Admin link)
+        if (expiryDate && expiryDate !== 'undefined') {
+            users[userIndex].expiryDate = expiryDate;
+        }
+        // Force active if logging in via valid link
+        users[userIndex].isActive = true; 
+     }
+
+     // 3. Update Creds (Sync password)
+     creds[username] = pass;
+
+     // 4. Save Everything
+     localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+     localStorage.setItem('perpect_ai_creds', JSON.stringify(creds));
+
+     // 5. Perform Login
+     return authService.login(username, pass);
+  },
+
   getAllUsers: (): User[] => {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
   },

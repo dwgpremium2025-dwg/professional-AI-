@@ -71,9 +71,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, lang, onClose }) => {
   const handleShare = (u: User) => {
       const pass = authService.getPassword(u.username);
       // Create auto-login link
-      // Fix: Use window.location.href.split('?')[0] to keep the full path (e.g. /app/) but remove query params
-      const baseUrl = window.location.href.split('?')[0];
-      const loginLink = `${baseUrl}?u=${encodeURIComponent(u.username)}&p=${encodeURIComponent(pass)}`;
+      // Use origin + pathname to get the clean base URL (no queries, no hash)
+      const baseUrl = window.location.origin + window.location.pathname;
+      const expiryParam = u.expiryDate ? `&e=${encodeURIComponent(u.expiryDate)}` : '';
+      const loginLink = `${baseUrl}?u=${encodeURIComponent(u.username)}&p=${encodeURIComponent(pass)}${expiryParam}`;
       
       const shareText = `Professional AI Access\nLink: ${loginLink}\n\nID: ${u.username}\nPass: ${pass}\nValid until: ${u.expiryDate ? new Date(u.expiryDate).toLocaleDateString() : 'Forever'}`;
       
