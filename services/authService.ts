@@ -52,7 +52,7 @@ export const authService = {
       let foundUser: User | null = null;
       let docRefId = '';
 
-      querySnapshot.forEach((doc) => {
+      querySnapshot.forEach((doc: any) => {
         const data = doc.data();
         // In a real app, password should be hashed. Here we check plain text as per request.
         if (data.password === pass) {
@@ -125,7 +125,7 @@ export const authService = {
     if (!db) return [];
     const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
     const users: User[] = [];
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: any) => {
        const d = doc.data();
        // Exclude password from UI object if possible, but we need it for sharing logic in this specific app design
        users.push({ id: doc.id, ...d } as User);
@@ -156,7 +156,7 @@ export const authService = {
     if (username === 'admin') return; // Protect admin
     const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
     const snapshot = await getDocs(q);
-    snapshot.forEach(async (d) => {
+    snapshot.forEach(async (d: any) => {
         await deleteDoc(d.ref);
     });
   },
@@ -165,7 +165,7 @@ export const authService = {
     if (!db) return;
     const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
     const snapshot = await getDocs(q);
-    snapshot.forEach(async (d) => {
+    snapshot.forEach(async (d: any) => {
         // Update password AND clear session token to force logout elsewhere
         await updateDoc(d.ref, { 
             password: newPass,
@@ -198,7 +198,7 @@ export const authService = {
   // Real-time Listener for App.tsx
   listenToUserSession: (userId: string, callback: (data: any) => void) => {
       if (!db) return () => {};
-      return onSnapshot(doc(db, COLLECTION_NAME, userId), (doc) => {
+      return onSnapshot(doc(db, COLLECTION_NAME, userId), (doc: any) => {
           if (doc.exists()) {
               callback(doc.data());
           } else {
