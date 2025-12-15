@@ -47,7 +47,23 @@ export const authService = {
       const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
       const querySnapshot = await getDocs(q);
       
-      if (querySnapshot.empty) return null;
+      // --- FIX: Auto-create Admin if missing ---
+      if (querySnapshot.empty) {
+        if (username === 'admin') {
+            // Auto-provision admin on first login attempt
+            const newAdmin = {
+                username: 'admin',
+                password: pass, // Sets the password to the one used in this attempt
+                role: Role.ADMIN,
+                isActive: true,
+                expiryDate: null,
+                sessionToken: `sess-${Date.now()}`
+            };
+            const docRef = await addDoc(collection(db, COLLECTION_NAME), newAdmin);
+            return { id: docRef.id, ...newAdmin } as User;
+        }
+        return null;
+      }
 
       let foundUser: User | null = null;
       let docRefId = '';
