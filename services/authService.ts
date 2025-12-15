@@ -36,6 +36,32 @@ try {
 
 const COLLECTION_NAME = 'users';
 
+/**
+ * HELPER: Deeply cleans an object to remove 'undefined' values, 
+ * replacing them with 'null' which Firestore accepts.
+ */
+const cleanData = (data: any): any => {
+    if (data === undefined) return null;
+    if (data === null) return null;
+    if (typeof data !== 'object') return data;
+    if (data instanceof Date) return data;
+
+    if (Array.isArray(data)) {
+        return data.map(item => cleanData(item));
+    }
+
+    const cleaned: any = {};
+    Object.keys(data).forEach(key => {
+        const value = data[key];
+        if (value === undefined) {
+            cleaned[key] = null; // Convert undefined to null
+        } else {
+            cleaned[key] = cleanData(value); // Recurse
+        }
+    });
+    return cleaned;
+};
+
 export const authService = {
   /**
    * Login using Firestore Query
@@ -47,20 +73,24 @@ export const authService = {
       const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
       const querySnapshot = await getDocs(q);
       
-      // --- FIX: Auto-create Admin if missing ---
+      // Auto-create Admin if missing
       if (querySnapshot.empty) {
         if (username === 'admin') {
-            // Auto-provision admin on first login attempt
-            const newAdmin = {
+            const newAdminData = {
                 username: 'admin',
-                password: pass, // Sets the password to the one used in this attempt
+                password: pass, 
                 role: Role.ADMIN,
                 isActive: true,
-                expiryDate: undefined, // Changed from null to undefined to match User type
+                expiryDate: null,
                 sessionToken: `sess-${Date.now()}`
             };
-            const docRef = await addDoc(collection(db, COLLECTION_NAME), newAdmin);
-            return { id: docRef.id, ...newAdmin } as User;
+            // Use cleanData to be 100% sure
+            const docRef = await addDoc(collection(db, COLLECTION_NAME), cleanData(newAdminData));
+            
+            return { 
+                id: docRef.id, 
+                ...newAdminData 
+            } as unknown as User;
         }
         return null;
       }
@@ -70,7 +100,6 @@ export const authService = {
 
       querySnapshot.forEach((doc: any) => {
         const data = doc.data();
-        // In a real app, password should be hashed. Here we check plain text as per request.
         if (data.password === pass) {
            foundUser = { id: doc.id, ...data } as User;
            docRefId = doc.id;
@@ -84,12 +113,11 @@ export const authService = {
           throw new Error("Account expired.");
         }
 
-        // Generate Session Token & Update DB to invalidate other sessions if needed, 
-        // or just track this session.
         const token = `sess-${Date.now()}-${Math.random().toString(36).substring(2)}`;
-        await updateDoc(doc(db, COLLECTION_NAME, docRefId), {
+        // Update session token
+        await updateDoc(doc(db, COLLECTION_NAME, docRefId), cleanData({
             sessionToken: token
-        });
+        }));
         
         u.sessionToken = token;
         return u;
@@ -108,32 +136,38 @@ export const authService = {
   loginViaShareLink: async (username: string, pass: string, expiryDate?: string): Promise<User | null> => {
      if (!db) throw new Error("Database connection failed.");
      
-     // 1. Check if user exists
+     // Normalize expiryDate
+     let safeExpiry: string | null = null;
+     if (expiryDate && typeof expiryDate === 'string' && expiryDate !== 'undefined' && expiryDate.trim() !== '') {
+         safeExpiry = expiryDate;
+     }
+
      const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
      const querySnapshot = await getDocs(q);
 
      if (querySnapshot.empty) {
-        // 2. Create User if not exists (Auto Provisioning)
+        // Create User
         const newUser = {
             username,
             password: pass,
             role: Role.MEMBER,
             isActive: true,
-            expiryDate: expiryDate && expiryDate !== 'undefined' ? expiryDate : null,
-            sessionToken: ''
+            expiryDate: safeExpiry,
+            sessionToken: null
         };
-        await addDoc(collection(db, COLLECTION_NAME), newUser);
+        // WRAP IN cleanData
+        await addDoc(collection(db, COLLECTION_NAME), cleanData(newUser));
      } else {
-        // 3. Update User if exists (Sync)
+        // Update User
         const docRef = querySnapshot.docs[0].ref;
-        const updates: any = { password: pass, isActive: true }; // Force active
-        if (expiryDate && expiryDate !== 'undefined') {
-            updates.expiryDate = expiryDate;
+        const updates: any = { password: pass, isActive: true };
+        if (safeExpiry) {
+            updates.expiryDate = safeExpiry;
         }
-        await updateDoc(docRef, updates);
+        // WRAP IN cleanData
+        await updateDoc(docRef, cleanData(updates));
      }
 
-     // 4. Perform Login
      return authService.login(username, pass);
   },
 
@@ -143,7 +177,6 @@ export const authService = {
     const users: User[] = [];
     querySnapshot.forEach((doc: any) => {
        const d = doc.data();
-       // Exclude password from UI object if possible, but we need it for sharing logic in this specific app design
        users.push({ id: doc.id, ...d } as User);
     });
     return users;
@@ -151,25 +184,31 @@ export const authService = {
 
   addUser: async (username: string, pass: string, expiryDate?: string) => {
     if (!db) throw new Error("Database connection failed.");
-    // Check duplicate
     const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
     const snapshot = await getDocs(q);
     if (!snapshot.empty) throw new Error("User exists");
 
+    let safeExpiry: string | null = null;
+    if (expiryDate && typeof expiryDate === 'string' && expiryDate !== 'undefined' && expiryDate.trim() !== '') {
+        safeExpiry = expiryDate;
+    }
+
     const newUser = {
       username,
-      password: pass, // Storing plain text as requested for sharing feature
+      password: pass,
       role: Role.MEMBER,
       isActive: true,
-      expiryDate: expiryDate || null
+      expiryDate: safeExpiry,
+      sessionToken: null // Ensure this field exists as null
     };
 
-    await addDoc(collection(db, COLLECTION_NAME), newUser);
+    // WRAP IN cleanData: This is the ultimate fix
+    await addDoc(collection(db, COLLECTION_NAME), cleanData(newUser));
   },
 
   deleteUser: async (username: string) => {
     if (!db) return;
-    if (username === 'admin') return; // Protect admin
+    if (username === 'admin') return;
     const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
     const snapshot = await getDocs(q);
     snapshot.forEach(async (d: any) => {
@@ -182,11 +221,10 @@ export const authService = {
     const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
     const snapshot = await getDocs(q);
     snapshot.forEach(async (d: any) => {
-        // Update password AND clear session token to force logout elsewhere
-        await updateDoc(d.ref, { 
+        await updateDoc(d.ref, cleanData({ 
             password: newPass,
             sessionToken: null 
-        });
+        }));
     });
   },
 
@@ -194,11 +232,16 @@ export const authService = {
     if (!db) return;
     const userRef = doc(db, COLLECTION_NAME, userId);
     const newStatus = !currentStatus;
-    // Update status AND clear session token if banning
-    await updateDoc(userRef, { 
-        isActive: newStatus,
-        sessionToken: newStatus ? undefined : null // If active, keep token (undefined usually ignored in update), if ban, clear it
-    });
+    
+    const updates: any = { 
+        isActive: newStatus
+    };
+    if (!newStatus) {
+        updates.sessionToken = null;
+    }
+    
+    // WRAP IN cleanData
+    await updateDoc(userRef, cleanData(updates));
   },
 
   getPassword: async (username: string): Promise<string> => {
@@ -211,14 +254,13 @@ export const authService = {
      return '';
   },
 
-  // Real-time Listener for App.tsx
   listenToUserSession: (userId: string, callback: (data: any) => void) => {
       if (!db) return () => {};
       return onSnapshot(doc(db, COLLECTION_NAME, userId), (doc: any) => {
           if (doc.exists()) {
               callback(doc.data());
           } else {
-              callback(null); // User deleted
+              callback(null);
           }
       });
   }
