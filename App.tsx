@@ -114,8 +114,9 @@ const App: React.FC = () => {
   // Model Selection State (False = Standard/Free/Flash, True = Pro/2K)
   const [useProModel, setUseProModel] = useState(false);
 
-  const [presetsOpen, setPresetsOpen] = useState(false);
-  const [imageStyleOpen, setImageStyleOpen] = useState(false);
+  // UI Accordion States: Default to OPEN (true)
+  const [presetsOpen, setPresetsOpen] = useState(true);
+  const [imageStyleOpen, setImageStyleOpen] = useState(true);
   
   // Image History Stack
   const [history, setHistory] = useState<ImageState[]>([]);
@@ -361,8 +362,8 @@ const App: React.FC = () => {
     setRotation(0);
     setFlipH(false);
     setUseProModel(false); // Reset to Free
-    setPresetsOpen(false);
-    setImageStyleOpen(false);
+    setPresetsOpen(true); // Reset to Open
+    setImageStyleOpen(true); // Reset to Open
     setLoading(false);
     
     // 3. Reset DOM Inputs directly to ensure UI clears if refs persist
