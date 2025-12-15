@@ -14,7 +14,7 @@ import {
   onSnapshot
 } from "firebase/firestore";
 
-// --- FIREBASE CONFIGURATION ---
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyDRQFJDaXTFcnYIYEn6ffqmMjleDTR8hug",
   authDomain: "professionalailogin.firebaseapp.com",
@@ -56,7 +56,7 @@ export const authService = {
                 password: pass, // Sets the password to the one used in this attempt
                 role: Role.ADMIN,
                 isActive: true,
-                expiryDate: null,
+                expiryDate: undefined, // Changed from null to undefined to match User type
                 sessionToken: `sess-${Date.now()}`
             };
             const docRef = await addDoc(collection(db, COLLECTION_NAME), newAdmin);
