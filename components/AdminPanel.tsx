@@ -28,7 +28,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, lang, onClose }) => {
          setMsg('Username and Password required');
          return;
       }
-      authService.addUser(newUsername, newPassword, expiry ? new Date(expiry).toISOString() : undefined);
+      
+      let expiryDateStr = undefined;
+      if (expiry) {
+        // Fix: Set expiry to the END of the selected day (23:59:59)
+        const d = new Date(expiry);
+        d.setHours(23, 59, 59, 999);
+        expiryDateStr = d.toISOString();
+      }
+
+      authService.addUser(newUsername, newPassword, expiryDateStr);
       setUsers(authService.getAllUsers());
       setMsg('User added successfully');
       setNewUsername('');
@@ -62,7 +71,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, lang, onClose }) => {
   const handleShare = (u: User) => {
       const pass = authService.getPassword(u.username);
       // Create auto-login link
-      const baseUrl = window.location.origin;
+      // Fix: Use window.location.href.split('?')[0] to keep the full path (e.g. /app/) but remove query params
+      const baseUrl = window.location.href.split('?')[0];
       const loginLink = `${baseUrl}?u=${encodeURIComponent(u.username)}&p=${encodeURIComponent(pass)}`;
       
       const shareText = `Professional AI Access\nLink: ${loginLink}\n\nID: ${u.username}\nPass: ${pass}\nValid until: ${u.expiryDate ? new Date(u.expiryDate).toLocaleDateString() : 'Forever'}`;

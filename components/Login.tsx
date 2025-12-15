@@ -32,21 +32,42 @@ const Login: React.FC<LoginProps> = ({ onLogin, lang }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  // Auto-fill from URL params
+  // Auto-fill and Auto-login from URL params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const u = params.get('u');
     const p = params.get('p');
-    if (u) setUsername(u);
-    if (p) setPassword(p);
-  }, []);
+    
+    if (u && p) {
+      // Attempt auto-login immediately
+      try {
+        const user = authService.login(u, p);
+        if (user) {
+          // Clear query params after successful login to clean up URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          onLogin(user);
+          return;
+        } else {
+          setError('Auto-login failed: Invalid credentials');
+        }
+      } catch (err: any) {
+        setError(err.message);
+      }
+      
+      // If login failed (but params exist), fill inputs so user can see why or retry
+      setUsername(u);
+      setPassword(p);
+    } else if (u) {
+      // If only username is present
+      setUsername(u);
+    }
+  }, [onLogin]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const user = authService.login(username, password);
       if (user) {
-        // Clear query params after successful login to clean up URL
         window.history.replaceState({}, document.title, window.location.pathname);
         onLogin(user);
       } else {
