@@ -151,24 +151,37 @@ const App: React.FC = () => {
 
   // Background Session Checker
   useEffect(() => {
-    // Only run if user is logged in
     if (!user) return;
 
-    const intervalId = setInterval(() => {
-      // Validate session against LocalStorage (which is updated by Admin actions)
+    const checkSession = () => {
+      // Re-validate session against LocalStorage
       const isValid = authService.validateSession(user.username, user.sessionToken);
       
       if (!isValid) {
-        clearInterval(intervalId);
+        handleLogout();
         // Alert in the correct language
         alert(lang === Language.TH 
-            ? "เซสชั่นหมดอายุหรือมีการเปลี่ยนแปลงบัญชีผู้ใช้ กรุณาเข้าสู่ระบบใหม่" 
+            ? "เซสชั่นหมดอายุหรือมีการเปลี่ยนแปลงข้อมูลบัญชี กรุณาเข้าสู่ระบบใหม่" 
             : "Session expired or account credentials changed. Please login again.");
-        handleLogout();
       }
-    }, 2000); // Check every 2 seconds
+    };
 
-    return () => clearInterval(intervalId);
+    // 1. Poll every 1 second (More frequent than before)
+    const intervalId = setInterval(checkSession, 1000);
+
+    // 2. Listen for storage events (Immediate logout across tabs in same browser)
+    const handleStorageChange = (e: StorageEvent) => {
+      // Trigger check if users or creds change
+      if (e.key === 'perpect_ai_users' || e.key === 'perpect_ai_creds') {
+        checkSession();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, [user, lang]);
 
   const handleRefImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
