@@ -39,7 +39,6 @@ const COLLECTION_NAME = 'users';
 /**
  * HELPER: Deeply cleans an object to remove 'undefined' values, 
  * replacing them with 'null' which Firestore accepts.
- * This fixes the "Unsupported field value: undefined" error.
  */
 const cleanData = (data: any): any => {
     if (data === undefined) return null;
@@ -72,7 +71,17 @@ export const authService = {
       if (!db) throw new Error("Database connection failed. Please check your internet connection.");
       
       const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (err: any) {
+        console.error("Firestore Login Error:", err);
+        if (err.code === 'permission-denied') {
+             throw new Error("Access Denied: Please check Firebase Firestore Rules.");
+        }
+        throw err;
+      }
       
       // Auto-create Admin if missing
       if (querySnapshot.empty) {
@@ -86,7 +95,8 @@ export const authService = {
                 sessionToken: `sess-${Date.now()}`
             };
             // Use cleanData to be 100% sure
-            const docRef = await addDoc(collection(db, COLLECTION_NAME), cleanData(newAdminData));
+            const finalData = cleanData(newAdminData);
+            const docRef = await addDoc(collection(db, COLLECTION_NAME), finalData);
             
             return { 
                 id: docRef.id, 
@@ -174,16 +184,23 @@ export const authService = {
 
   getAllUsers: async (): Promise<User[]> => {
     if (!db) return [];
-    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
-    const users: User[] = [];
-    querySnapshot.forEach((doc: any) => {
-       const d = doc.data();
-       users.push({ id: doc.id, ...d } as User);
-    });
-    return users;
+    try {
+        const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+        const users: User[] = [];
+        querySnapshot.forEach((doc: any) => {
+        const d = doc.data();
+        users.push({ id: doc.id, ...d } as User);
+        });
+        return users;
+    } catch (e: any) {
+        if (e.code === 'permission-denied') {
+            console.error("Please enable 'allow read, write: if true;' in Firebase Console > Firestore > Rules");
+        }
+        return [];
+    }
   },
 
-  addUser: async (username: string, pass: string, expiryDate?: string) => {
+  addUser: async (username: string, pass: string, expiryDate?: string | null) => {
     if (!db) throw new Error("Database connection failed.");
     const q = query(collection(db, COLLECTION_NAME), where("username", "==", username));
     const snapshot = await getDocs(q);
@@ -204,7 +221,15 @@ export const authService = {
     };
 
     // WRAP IN cleanData: This is the critical fix for addDoc error
-    await addDoc(collection(db, COLLECTION_NAME), cleanData(newUser));
+    try {
+        await addDoc(collection(db, COLLECTION_NAME), cleanData(newUser));
+    } catch (e: any) {
+        console.error("AddUser Failed:", e);
+        if (e.code === 'permission-denied') {
+             throw new Error("Permission Denied: Check Firestore Rules");
+        }
+        throw e;
+    }
   },
 
   deleteUser: async (username: string) => {

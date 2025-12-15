@@ -36,7 +36,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, lang, onClose }) => {
       }
       
       setLoading(true);
-      let expiryDateStr = undefined;
+      
+      // Initialize as null to be explicit (instead of undefined)
+      let expiryDateStr: string | null = null;
+      
       if (expiry) {
         const d = new Date(expiry);
         d.setHours(23, 59, 59, 999);
@@ -85,9 +88,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, lang, onClose }) => {
   };
 
   const handleShare = async (u: User) => {
-      // Pass might not be in the user object if using real firestore logic properly, 
-      // but for this simplistic app we fetch it or stored it. 
-      // We will fetch it explicitly.
       const pass = await authService.getPassword(u.username);
       
       const baseUrl = window.location.origin + window.location.pathname;
