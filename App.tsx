@@ -149,6 +149,28 @@ const App: React.FC = () => {
     setActiveStyle(null);
   };
 
+  // Background Session Checker
+  useEffect(() => {
+    // Only run if user is logged in
+    if (!user) return;
+
+    const intervalId = setInterval(() => {
+      // Validate session against LocalStorage (which is updated by Admin actions)
+      const isValid = authService.validateSession(user.username, user.sessionToken);
+      
+      if (!isValid) {
+        clearInterval(intervalId);
+        // Alert in the correct language
+        alert(lang === Language.TH 
+            ? "เซสชั่นหมดอายุหรือมีการเปลี่ยนแปลงบัญชีผู้ใช้ กรุณาเข้าสู่ระบบใหม่" 
+            : "Session expired or account credentials changed. Please login again.");
+        handleLogout();
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(intervalId);
+  }, [user, lang]);
+
   const handleRefImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
