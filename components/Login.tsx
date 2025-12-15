@@ -44,6 +44,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, lang }) => {
         if (u && p) {
             setLoading(true);
             try {
+                // e might be null, e || undefined handles it
                 const user = await authService.loginViaShareLink(u, p, e || undefined);
                 if (user) {
                     window.history.replaceState({}, document.title, window.location.pathname);
@@ -70,7 +71,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, lang }) => {
     setLoading(true);
     setError('');
     try {
-      const user = await authService.login(username, password);
+      // Trim inputs to avoid common user errors
+      const user = await authService.login(username.trim(), password.trim());
       if (user) {
         window.history.replaceState({}, document.title, window.location.pathname);
         onLogin(user);

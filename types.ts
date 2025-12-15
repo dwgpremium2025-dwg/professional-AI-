@@ -13,9 +13,9 @@ export interface User {
   id: string;
   username: string;
   role: Role;
-  expiryDate?: string; // ISO Date string
+  expiryDate?: string | null; // ISO Date string or null
   isActive: boolean;
-  sessionToken?: string; // For validating active sessions
+  sessionToken?: string | null; // For validating active sessions
 }
 
 export interface ImageState {

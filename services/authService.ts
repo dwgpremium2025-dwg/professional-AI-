@@ -39,6 +39,7 @@ const COLLECTION_NAME = 'users';
 /**
  * HELPER: Deeply cleans an object to remove 'undefined' values, 
  * replacing them with 'null' which Firestore accepts.
+ * This fixes the "Unsupported field value: undefined" error.
  */
 const cleanData = (data: any): any => {
     if (data === undefined) return null;
@@ -114,7 +115,7 @@ export const authService = {
         }
 
         const token = `sess-${Date.now()}-${Math.random().toString(36).substring(2)}`;
-        // Update session token
+        // Update session token safely
         await updateDoc(doc(db, COLLECTION_NAME, docRefId), cleanData({
             sessionToken: token
         }));
@@ -198,11 +199,11 @@ export const authService = {
       password: pass,
       role: Role.MEMBER,
       isActive: true,
-      expiryDate: safeExpiry,
-      sessionToken: null // Ensure this field exists as null
+      expiryDate: safeExpiry, // might be null
+      sessionToken: null 
     };
 
-    // WRAP IN cleanData: This is the ultimate fix
+    // WRAP IN cleanData: This is the critical fix for addDoc error
     await addDoc(collection(db, COLLECTION_NAME), cleanData(newUser));
   },
 
